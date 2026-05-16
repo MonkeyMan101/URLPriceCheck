@@ -19,7 +19,7 @@ Native **macOS + iOS** app to watch store URLs, auto-detect prices, and get aler
 3. Pick run destination: **My Mac** or your **iPhone**.
 4. Press **Run** (⌘R).
 
-Allow notifications when prompted.
+Allow notifications when prompted
 
 ## iPhone install (without App Store)
 
