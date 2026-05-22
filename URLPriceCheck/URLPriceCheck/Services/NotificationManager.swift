@@ -139,6 +139,56 @@ final class NotificationManager {
         }
     }
 
+    /// One notification for several routine check-completes (avoids many banners firing together).
+    func notifyCheckBatchSummary(items: [WatchedItem]) async {
+        guard !items.isEmpty else { return }
+        configure()
+        let settings = await center.notificationSettings()
+        let allowed: Bool = {
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: return true
+            #if os(iOS)
+            case .ephemeral: return true
+            #endif
+            default: return false
+            }
+        }()
+        guard allowed else { return }
+
+        let time = Date().formatted(date: .omitted, time: .shortened)
+        let title: String
+        if items.count == 1 {
+            title = "\(productLabel(for: items[0])) — checked"
+        } else {
+            title = "URLPriceCheck — \(items.count) watches checked"
+        }
+
+        let lines = items.map { item in
+            let label = productLabel(for: item)
+            let price = item.lastPriceDisplay ?? "—"
+            return "• \(label): \(price)"
+        }
+        var body = lines.joined(separator: "\n")
+        if body.count > 900 {
+            body = String(body.prefix(897)) + "…"
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.subtitle = "Finished at \(time)"
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "com.deanwass.URLPriceCheck.batch-routine-summary",
+            content: content,
+            trigger: nil
+        )
+        do {
+            try await center.add(request)
+        } catch {}
+    }
+
     private func registerCategories() {
         let critical = UNNotificationCategory(
             identifier: "CRITICAL_PRICE",

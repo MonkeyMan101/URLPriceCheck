@@ -123,9 +123,7 @@ struct ContentView: View {
     private func checkAll() async {
         isCheckingAll = true
         defer { isCheckingAll = false }
-        for item in items where item.isEnabled {
-            await PriceCheckService.shared.check(item: item)
-        }
+        await PriceCheckService.shared.checkAllEnabled(context: modelContext, items: items)
     }
 
     @ViewBuilder

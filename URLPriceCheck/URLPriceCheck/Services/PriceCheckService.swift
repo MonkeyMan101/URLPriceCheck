@@ -5,9 +5,20 @@ import SwiftData
 final class PriceCheckService {
     static let shared = PriceCheckService()
 
+    /// Avoid overlapping checks for the same watch (e.g. two timers or timer + manual); `await` can interleave on MainActor.
+    private var checkingItemIDs = Set<UUID>()
+
     private init() {}
 
-    func check(item: WatchedItem, notifyOnComplete: Bool = true) async {
+    func check(
+        item: WatchedItem,
+        notifyOnComplete: Bool = true,
+        omitRoutineCheckComplete: Bool = false
+    ) async {
+        guard !checkingItemIDs.contains(item.id) else { return }
+        checkingItemIDs.insert(item.id)
+        defer { checkingItemIDs.remove(item.id) }
+
         guard let url = item.url else {
             item.lastError = "Invalid URL"
             await NotificationManager.shared.notify(
@@ -41,7 +52,7 @@ final class PriceCheckService {
             item.lastError = nil
 
             if notifyOnComplete {
-                await evaluateAlerts(item: item, price: price)
+                await evaluateAlerts(item: item, price: price, omitRoutineCheckComplete: omitRoutineCheckComplete)
             }
         } catch {
             item.lastPrice = nil
@@ -58,12 +69,43 @@ final class PriceCheckService {
     }
 
     func checkAllDue(context: ModelContext, items: [WatchedItem]) async {
-        for item in items where item.isDueForCheck {
-            await check(item: item)
+        let due = items.filter(\.isDueForCheck)
+        guard !due.isEmpty else { return }
+        let batch = due.count > 1
+        for item in due {
+            await check(item: item, notifyOnComplete: true, omitRoutineCheckComplete: batch)
+        }
+        if batch {
+            await postBatchRoutineCheckCompleteIfNeeded(items: due)
         }
     }
 
-    private func evaluateAlerts(item: WatchedItem, price: DetectedPrice) async {
+    /// Manual "Check all" — same batching as scheduled checks so many watches do not flood notifications at once.
+    func checkAllEnabled(context: ModelContext, items: [WatchedItem]) async {
+        let enabled = items.filter(\.isEnabled)
+        guard !enabled.isEmpty else { return }
+        let batch = enabled.count > 1
+        for item in enabled {
+            await check(item: item, notifyOnComplete: true, omitRoutineCheckComplete: batch)
+        }
+        if batch {
+            await postBatchRoutineCheckCompleteIfNeeded(items: enabled)
+        }
+    }
+
+    /// Items that did not already get a price/critical notification; combine their "checked OK" into one banner.
+    private func postBatchRoutineCheckCompleteIfNeeded(items: [WatchedItem]) async {
+        let routine = items.filter { item in
+            guard let price = item.lastPrice, item.lastError == nil else { return false }
+            if let c = item.criticalPrice, price <= c { return false }
+            if let a = item.alertPrice, price <= a { return false }
+            return true
+        }
+        guard routine.count >= 1 else { return }
+        await NotificationManager.shared.notifyCheckBatchSummary(items: routine)
+    }
+
+    private func evaluateAlerts(item: WatchedItem, price: DetectedPrice, omitRoutineCheckComplete: Bool) async {
         let msg = "Current price: \(price.display)"
 
         if let critical = item.criticalPrice, price.amount <= critical {
@@ -83,6 +125,8 @@ final class PriceCheckService {
             )
             return
         }
+
+        if omitRoutineCheckComplete { return }
 
         await NotificationManager.shared.notify(
             item: item,

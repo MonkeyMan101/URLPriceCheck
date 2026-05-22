@@ -9,6 +9,9 @@ import BackgroundTasks
 enum BackgroundCheckScheduler {
     static let refreshTaskID = "com.deanwass.URLPriceCheck.refresh"
 
+    /// Only one foreground timer should exist; `onAppear` can run again (scene re-activation) and would stack timers.
+    private static var foregroundTimer: Timer?
+
     static func register() {
         #if os(iOS)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshTaskID, using: nil) { task in
@@ -51,11 +54,16 @@ enum BackgroundCheckScheduler {
     /// Foreground timer — reliable on macOS and iOS while app is active.
     @MainActor
     static func startForegroundTimer(context: ModelContext) {
-        Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { _ in
+        foregroundTimer?.invalidate()
+        foregroundTimer = nil
+
+        let timer = Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { _ in
             Task { @MainActor in
                 let items = (try? context.fetch(FetchDescriptor<WatchedItem>())) ?? []
                 await PriceCheckService.shared.checkAllDue(context: context, items: items)
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        foregroundTimer = timer
     }
 }
