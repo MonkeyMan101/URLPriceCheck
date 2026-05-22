@@ -556,4 +556,5 @@ The Swift app **generalizes** this for multiple stores, currencies, and alerts. 
 ## Related documentation
 
 - [README.md](README.md) — install, signing, background refresh, example watch
+- [Source repository (GitHub)](https://github.com/MonkeyMan101/URLPriceCheck)
 - Apple: [Background Tasks](https://developer.apple.com/documentation/backgroundtasks), [Share extensions](https://developer.apple.com/documentation/uikit/share_extensions)

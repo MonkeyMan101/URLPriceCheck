@@ -2,6 +2,15 @@
 
 Native **macOS + iOS** app to watch store URLs, auto-detect prices, and get alerts.
 
+**Repository:** [github.com/MonkeyMan101/URLPriceCheck](https://github.com/MonkeyMan101/URLPriceCheck)
+
+If your local clone still uses the old remote (e.g. `Halo-Wars-2-Check`), update it:
+
+```bash
+git remote set-url origin https://github.com/MonkeyMan101/URLPriceCheck.git
+git remote -v
+```
+
 ## Features
 
 - Add any product URL (Xbox, Amazon, etc.)
